@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+require_relative '../scripts/setup'
+
+chdir APP_ROOT do
+  infoblock <<-INFO
+ВНИМАНИЕ: Для запуска приложения необходим docker + docker-compose.
+
+OSX:
+  1. до 2010 https://docs.docker.com/toolbox/overview/
+  2. 2010+ https://docs.docker.com/docker-for-mac/
+Linux:
+  1. https://docs.docker.com/engine/installation/linux/
+  INFO
+
+  title 'Создаем файлы из примеров'
+  subtitle 'Переменные окружения - .env.local'
+  unless File.exist?('.env.local')
+    system! 'cp', '.env.local.sample', '.env.local'
+  end
+
+  subtitle 'Настройка докера - docker-compose.override.yml'
+  unless File.exist?('docker-compose.override.yml')
+    system! 'cp', 'docker-compose.override.yml.sample', 'docker-compose.override.yml'
+  end
+
+  title 'Собираем образы для разработки...', timeout: 3
+
+  system! 'docker-compose down'
+
+  volumes = `docker volume ls -qf dangling=true`
+
+  system! 'docker volume rm $(docker volume ls -qf dangling=true)' unless volumes == ''
+  system! 'docker-compose build app'
+
+  title 'Запускаем сервисы postgres/redis...', timeout: 3
+  system! 'docker-compose up -d postgres redis'
+
+  title 'Подготавливаем БД'
+  system! 'docker-compose run app rails db:create db:migrate db:seed'
+
+
+  # title 'Устанавливаем гемы для разработки'
+  # %w( mailcatcher).each do |gem|
+  #  system! "gem install #{gem} --quiet --no-document "
+  # end
+
+  # title 'Удаляем логи'
+  # system! 'docker-compose run app rails log:clear tmp:clear'
+
+  infoblock <<-INFO
+Приложение APP_NAME успешно установлено.
+
+Для запуска приложения нужно выполнить следующее:
+  `docker-compose up app` - запуск rails-приложения
+  `docker-compose up webpack` - запуск assets-сервера
+
+  или
+
+  `docker-compose up app webpack`
+
+ИНФОРМАЦИЯ:
+   Более подробно про настройку окружения разработчика смотри
+   в файле README.md
+  INFO
+end
